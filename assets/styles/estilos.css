@@ -1,0 +1,37 @@
+.fuente{
+    font-family: "Fredoka", sans-serif;
+    font-optical-sizing: auto;
+    font-style: normal;
+    font-variation-settings:"wdth" 100;
+}
+
+.banner{
+    background-image: url("../img/fondoUno.jpg");
+    background-position: top center;
+    background-size: cover;
+    background-attachment: fixed;
+    padding: 25%;
+    position: relative;
+    z-index: 1;
+
+}
+
+.banner::after{
+    content: "";
+    position: absolute;
+    top:0;
+    left:0;
+    height: 100%;
+    width: 100%;
+    background-color: black;
+    opacity: 0.5;
+    z-index: -1;
+}
+
+.colorPrincipal{
+    background-color: #231bd1;
+}
+
+.colorSecundario{
+    background-color: #7d6c9d;
+}
