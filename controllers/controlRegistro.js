@@ -45,6 +45,7 @@ students.forEach(s => attendanceStates[s.id] = 'No registrado');
 const tbody = document.getElementById('studentsTbody');
 const searchInput = document.getElementById('searchInput');
 const filterForm = document.getElementById('filterForm');
+const selectAllCheckbox = document.getElementById('selectAllCheckbox');
 
 // Crear nuevo select alfabético (A-Z + Todos)
 const filterRow = filterForm.querySelector('.filter-row');
@@ -79,6 +80,9 @@ filterRow.insertBefore(filterAlphaDiv, filterRow.lastElementChild);
 
 // Modificar renderTable para incluir filtro alfabético
 function renderTable(filter = {}) {
+  // Desmarcar el checkbox principal cada vez que se renderiza la tabla
+  selectAllCheckbox.checked = false;
+  selectAllCheckbox.indeterminate = false;
   tbody.innerHTML = '';
 
   const searchText = (filter.search || '').toLowerCase();
@@ -98,6 +102,19 @@ function renderTable(filter = {}) {
     const tr = document.createElement('tr');
     tr.setAttribute('data-id', student.id);
 
+    //Formato Fechas Futuras
+
+    const fechaInput = document.getElementById('fechaInput');
+function disableFutureDates() {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const maxDate = `${yyyy}-${mm}-${dd}`;
+    fechaInput.setAttribute('max', maxDate);
+}
+disableFutureDates();
+
     // Colorear fila según estado de asistencia
     const studentStatus = attendanceStates[student.id];
     if (studentStatus === "Ausente") {
@@ -107,6 +124,20 @@ function renderTable(filter = {}) {
       // Clase para justificado (amarillo)
       tr.classList.add("table-warning");
     }
+
+    // --- INICIO: Lógica para Checkbox de selección ---
+    const tdCheckbox = document.createElement('td');
+    tdCheckbox.className = 'checkbox-cell';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'student-checkbox';
+    checkbox.setAttribute('aria-label', `Seleccionar a ${student.name}`);
+    checkbox.addEventListener('change', () => {
+      tr.classList.toggle('selected', checkbox.checked);
+      updateSelectAllCheckboxState();
+    });
+    tdCheckbox.appendChild(checkbox);
+    // --- FIN: Lógica para Checkbox de selección ---
 
     // Columna estudiante
     const tdName = document.createElement('td');
@@ -189,6 +220,7 @@ function renderTable(filter = {}) {
     tdActions.appendChild(btnAbsent);
     tdActions.appendChild(btnJustified);
 
+    tr.appendChild(tdCheckbox);
     tr.appendChild(tdName);
     tr.appendChild(tdGroup);
     tr.appendChild(tdStatus);
@@ -199,7 +231,7 @@ function renderTable(filter = {}) {
   if (filteredStudents.length === 0) {
     const trEmpty = document.createElement('tr');
     const tdEmpty = document.createElement('td');
-    tdEmpty.colSpan = 4;
+    tdEmpty.colSpan = 5; // Aumentado a 5 por la nueva columna de checkbox
     tdEmpty.style.textAlign = 'center';
     tdEmpty.style.padding = '1.2rem';
     tdEmpty.style.color = '#666';
@@ -224,6 +256,43 @@ function getCurrentFilters() {
     alpha: document.getElementById('alphaSelect').value,
   };
 }
+
+// --- INICIO: Lógica para controlar la selección de todos los checkboxes ---
+
+/**
+ * Actualiza el estado del checkbox "Seleccionar todos" basado en los checkboxes individuales.
+ */
+function updateSelectAllCheckboxState() {
+  const studentCheckboxes = document.querySelectorAll('.student-checkbox');
+  const total = studentCheckboxes.length;
+  const checkedCount = document.querySelectorAll('.student-checkbox:checked').length;
+
+  if (total === 0) {
+    selectAllCheckbox.checked = false;
+    selectAllCheckbox.indeterminate = false;
+  } else if (checkedCount === 0) {
+    selectAllCheckbox.checked = false;
+    selectAllCheckbox.indeterminate = false;
+  } else if (checkedCount === total) {
+    selectAllCheckbox.checked = true;
+    selectAllCheckbox.indeterminate = false;
+  } else {
+    selectAllCheckbox.checked = false;
+    selectAllCheckbox.indeterminate = true; // Estado intermedio (algunos seleccionados)
+  }
+}
+
+/**
+ * Evento para el checkbox "Seleccionar todos".
+ */
+selectAllCheckbox.addEventListener('change', () => {
+  const studentCheckboxes = document.querySelectorAll('.student-checkbox');
+  studentCheckboxes.forEach(checkbox => {
+    checkbox.checked = selectAllCheckbox.checked;
+    checkbox.closest('tr').classList.toggle('selected', selectAllCheckbox.checked);
+  });
+});
+// --- FIN: Lógica para controlar la selección de todos los checkboxes ---
 
 // Eventos
 filterForm.addEventListener('submit', e => {

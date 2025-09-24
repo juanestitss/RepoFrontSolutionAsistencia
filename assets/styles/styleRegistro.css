@@ -327,6 +327,29 @@ tbody td {
   }
 }
 
+/*Check Box de seleccion*/
+input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #264ABD;
+}
+
+.checkbox-header {
+  text-align: center;
+  width: 50px;
+}
+
+.checkbox-cell {
+  text-align: center;
+  width: 50px;
+  padding: 14px 8px;
+}
+
+tbody tr.selected {
+  background-color: #e0f2fe !important;
+  border-left: 4px solid #264ABD;
+}
 /* Resaltar ausentes */
 
 /* Estilo para filas de ausentes (rojo) */

@@ -1,3 +1,7 @@
+html {
+    scroll-behavior: smooth;
+}
+
 .fuente{
     font-family: "Fredoka", sans-serif;
     font-optical-sizing: auto;
@@ -34,4 +38,29 @@
 
 .colorSecundario{
     background-color: #7d6c9d;
+}
+
+/* Estilos para el botón flotante */
+.btn-flotante {
+    position: fixed; 
+    bottom: 30px;
+    right: 30px;
+    background-color: #231bd1; 
+    color: white;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%; 
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 32px; 
+    text-decoration: none;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    z-index: 1000; 
+    transition: transform 0.3s ease;
+}
+
+.btn-flotante:hover {
+    color: white;
+    transform: scale(1.1); 
 }
