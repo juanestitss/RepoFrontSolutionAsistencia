@@ -1,4 +1,22 @@
-// Datos de estudiantes (simulación) con 30 alumnos divididos en tres grupos
+function checkSession() {
+  const session = localStorage.getItem('currentSession');
+  if (!session) {
+    alert('⚠️ Debes iniciar sesión para acceder a esta página');
+    window.location.href = './logIn.html';
+    return false;
+  }
+  
+  const sessionData = JSON.parse(session);
+  console.log('Usuario actual:', sessionData.username);
+  return true;
+}
+
+// Verificar sesión al cargar
+if (!checkSession()) {
+  throw new Error('Sesión no válida');
+}
+
+// DATOS DE ESTUDIANTES
 const students = [
   // Grupo A (10 estudiantes)
   { id: 1, name: "Ana García", email: "ana@ejemplo.com", group: "Grupo A", attendance: "No registrado" },
@@ -37,19 +55,312 @@ const students = [
   { id: 30, name: "Renata Gómez", email: "renata@ejemplo.com", group: "Grupo C", attendance: "No registrado" },
 ];
 
-// Estado asistencia en memoria inicializado
-const attendanceStates = {};
-students.forEach(s => attendanceStates[s.id] = 'No registrado');
+// MANEJO DE LOCALSTORAGE PARA ASISTENCIA
+let hasUnsavedChanges = false; // Control de cambios sin guardar
 
-// Referencias DOM
+// Función para obtener la clave de localStorage según filtros actuales
+function getStorageKey() {
+  const materia = document.getElementById('materiaSelect').value;
+  const grupo = document.getElementById('grupoSelect').value;
+  const fecha = document.getElementById('fechaInput').value || 'sin-fecha';
+  return `attendance_${materia}_${grupo}_${fecha}`;
+}
+
+// Cargar estados de asistencia desde localStorage
+function loadAttendanceFromStorage() {
+  const key = getStorageKey();
+  const saved = localStorage.getItem(key);
+  if (saved) {
+    const data = JSON.parse(saved);
+    console.log('✓ Asistencia cargada desde localStorage:', key);
+    return data;
+  }
+  return {};
+}
+
+// Guardar estados de asistencia en localStorage
+function saveAttendanceToStorage(attendanceStates) {
+  const key = getStorageKey();
+  localStorage.setItem(key, JSON.stringify(attendanceStates));
+  console.log('✓ Asistencia guardada en localStorage:', key);
+  hasUnsavedChanges = false;
+  updateActionButtons();
+}
+
+// Borrar asistencia del localStorage
+function deleteAttendanceFromStorage() {
+  const key = getStorageKey();
+  localStorage.removeItem(key);
+  console.log('🗑️ Asistencia eliminada del localStorage:', key);
+}
+
+// Estado de asistencia inicializado desde localStorage
+let attendanceStates = loadAttendanceFromStorage();
+
+// Inicializar estados para estudiantes que no tienen registro
+students.forEach(s => {
+  if (!attendanceStates[s.id]) {
+    attendanceStates[s.id] = 'No registrado';
+  }
+});
+
+// REFERENCIAS DOM
 const tbody = document.getElementById('studentsTbody');
 const searchInput = document.getElementById('searchInput');
 const filterForm = document.getElementById('filterForm');
 const selectAllCheckbox = document.getElementById('selectAllCheckbox');
 
-// Crear nuevo select alfabético (A-Z + Todos)
-const filterRow = filterForm.querySelector('.filter-row');
+// CREAR BOTONES DE ACCIÓN (GUARDAR, DESHACER, BORRAR)
+function createActionButtons() {
+  const filterBox = document.querySelector('.filter-box');
+  
+  const actionContainer = document.createElement('div');
+  actionContainer.style.cssText = `
+    margin-top: 1rem;
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    flex-wrap: wrap;
+  `;
+  
+  //BOTÓN GUARDAR
+  const saveButton = document.createElement('button');
+  saveButton.id = 'saveButton';
+  saveButton.type = 'button';
+  saveButton.innerHTML = '💾 Guardar Cambios';
+  saveButton.style.cssText = `
+    background-color: #10b981;
+    color: white;
+    padding: 0.7rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  `;
+  
+  //BOTÓN DESHACER
+  const undoButton = document.createElement('button');
+  undoButton.id = 'undoButton';
+  undoButton.type = 'button';
+  undoButton.innerHTML = '↺ Deshacer Cambios';
+  undoButton.style.cssText = `
+    background-color: #f59e0b;
+    color: white;
+    padding: 0.7rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  `;
+  
+  // BOTÓN BORRAR REGISTRO 
+  const deleteButton = document.createElement('button');
+  deleteButton.id = 'deleteButton';
+  deleteButton.type = 'button';
+  deleteButton.innerHTML = '🗑️ Borrar Registro';
+  deleteButton.style.cssText = `
+    background-color: #ef4444;
+    color: white;
+    padding: 0.7rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  `;
+  
+  // MENSAJE DE ESTADO 
+  const statusMessage = document.createElement('span');
+  statusMessage.id = 'statusMessage';
+  statusMessage.style.cssText = `
+    font-size: 0.9rem;
+    color: #666;
+    font-weight: 500;
+  `;
+  
+  //  EVENTOS 
+  saveButton.addEventListener('click', handleSaveChanges);
+  undoButton.addEventListener('click', handleUndoChanges);
+  deleteButton.addEventListener('click', handleDeleteRecord);
+  
+  // Hover effects
+  [saveButton, undoButton, deleteButton].forEach(btn => {
+    btn.addEventListener('mouseenter', () => {
+      if (!btn.disabled) {
+        btn.style.transform = 'translateY(-2px)';
+        btn.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
+      }
+    });
+    
+    btn.addEventListener('mouseleave', () => {
+      btn.style.transform = 'translateY(0)';
+      btn.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+    });
+  });
+  
+  actionContainer.appendChild(saveButton);
+  actionContainer.appendChild(undoButton);
+  actionContainer.appendChild(deleteButton);
+  actionContainer.appendChild(statusMessage);
+  filterBox.appendChild(actionContainer);
+}
 
+// ACTUALIZAR ESTADO DE BOTONES
+function updateActionButtons() {
+  const saveButton = document.getElementById('saveButton');
+  const undoButton = document.getElementById('undoButton');
+  const deleteButton = document.getElementById('deleteButton');
+  const statusMessage = document.getElementById('statusMessage');
+  
+  if (!saveButton) return;
+  
+  // Estado del botón GUARDAR
+  if (hasUnsavedChanges) {
+    saveButton.style.backgroundColor = '#10b981';
+    saveButton.disabled = false;
+    saveButton.style.opacity = '1';
+    undoButton.style.backgroundColor = '#f59e0b';
+    undoButton.disabled = false;
+    undoButton.style.opacity = '1';
+    statusMessage.textContent = '⚠️ Hay cambios sin guardar';
+    statusMessage.style.color = '#f59e0b';
+  } else {
+    saveButton.style.backgroundColor = '#9ca3af';
+    saveButton.disabled = true;
+    saveButton.style.opacity = '0.6';
+    undoButton.style.backgroundColor = '#9ca3af';
+    undoButton.disabled = true;
+    undoButton.style.opacity = '0.6';
+    statusMessage.textContent = '✓ Todos los cambios guardados';
+    statusMessage.style.color = '#10b981';
+  }
+  
+  // Estado del botón BORRAR (siempre disponible si hay datos guardados)
+  const hasStoredData = localStorage.getItem(getStorageKey()) !== null;
+  if (hasStoredData) {
+    deleteButton.style.backgroundColor = '#ef4444';
+    deleteButton.disabled = false;
+    deleteButton.style.opacity = '1';
+  } else {
+    deleteButton.style.backgroundColor = '#9ca3af';
+    deleteButton.disabled = true;
+    deleteButton.style.opacity = '0.6';
+  }
+}
+
+// MANEJAR GUARDAR CAMBIOS
+function handleSaveChanges() {
+  const saveButton = document.getElementById('saveButton');
+  const statusMessage = document.getElementById('statusMessage');
+  
+  saveButton.innerHTML = '⏳ Guardando...';
+  saveButton.disabled = true;
+  
+  setTimeout(() => {
+    saveAttendanceToStorage(attendanceStates);
+    
+    saveButton.innerHTML = '✓ Guardado';
+    saveButton.style.backgroundColor = '#059669';
+    statusMessage.textContent = '✓ Cambios guardados exitosamente';
+    statusMessage.style.color = '#10b981';
+    
+    setTimeout(() => {
+      saveButton.innerHTML = '💾 Guardar Cambios';
+      updateActionButtons();
+    }, 2000);
+  }, 500);
+}
+
+// MANEJAR DESHACER CAMBIOS
+
+function handleUndoChanges() {
+  if (!confirm('⚠️ ¿Deseas deshacer todos los cambios no guardados? Esta acción restaurará los datos del último guardado.')) {
+    return;
+  }
+  
+  const undoButton = document.getElementById('undoButton');
+  const statusMessage = document.getElementById('statusMessage');
+  
+  undoButton.innerHTML = '⏳ Restaurando...';
+  undoButton.disabled = true;
+  
+  setTimeout(() => {
+    // Recargar desde localStorage
+    attendanceStates = loadAttendanceFromStorage();
+    
+    // Reinicializar estados
+    students.forEach(s => {
+      if (!attendanceStates[s.id]) {
+        attendanceStates[s.id] = 'No registrado';
+      }
+    });
+    
+    hasUnsavedChanges = false;
+    renderTable(getCurrentFilters());
+    
+    undoButton.innerHTML = '✓ Restaurado';
+    undoButton.style.backgroundColor = '#059669';
+    statusMessage.textContent = '✓ Cambios restaurados desde el último guardado';
+    statusMessage.style.color = '#10b981';
+    
+    setTimeout(() => {
+      undoButton.innerHTML = '↺ Deshacer Cambios';
+      updateActionButtons();
+    }, 2000);
+  }, 500);
+}
+
+// MANEJAR BORRAR REGISTRO
+function handleDeleteRecord() {
+  const materia = document.getElementById('materiaSelect').value;
+  const grupo = document.getElementById('grupoSelect').value;
+  const fecha = document.getElementById('fechaInput').value || 'sin-fecha';
+  
+  if (!confirm(`⚠️ ¿ESTÁS SEGURO?\n\nEsto eliminará permanentemente el registro de asistencia de:\n• Materia: ${materia}\n• Grupo: ${grupo}\n• Fecha: ${fecha}\n\nEsta acción NO se puede deshacer.`)) {
+    return;
+  }
+  
+  const deleteButton = document.getElementById('deleteButton');
+  const statusMessage = document.getElementById('statusMessage');
+  
+  deleteButton.innerHTML = '⏳ Eliminando...';
+  deleteButton.disabled = true;
+  
+  setTimeout(() => {
+    // Borrar del localStorage
+    deleteAttendanceFromStorage();
+    
+    // Reiniciar estados a "No registrado"
+    students.forEach(s => {
+      attendanceStates[s.id] = 'No registrado';
+    });
+    
+    hasUnsavedChanges = false;
+    renderTable(getCurrentFilters());
+    
+    deleteButton.innerHTML = '✓ Eliminado';
+    deleteButton.style.backgroundColor = '#7f1d1d';
+    statusMessage.textContent = '🗑️ Registro eliminado permanentemente';
+    statusMessage.style.color = '#ef4444';
+    
+    setTimeout(() => {
+      deleteButton.innerHTML = '🗑️ Borrar Registro';
+      updateActionButtons();
+    }, 2000);
+  }, 500);
+}
+
+// CREAR SELECT ALFABÉTICO
+
+const filterRow = filterForm.querySelector('.filter-row');
 const filterAlphaDiv = document.createElement('div');
 filterAlphaDiv.className = 'filter-field';
 
@@ -67,20 +378,33 @@ alphaOptions.forEach(letter => {
   const option = document.createElement('option');
   option.value = letter === 'Todos' ? '' : letter;
   option.textContent = letter;
-  // Solo agregar al select, no al div padre
   selectAlpha.appendChild(option);
 });
 
 filterAlphaDiv.appendChild(labelAlpha);
 filterAlphaDiv.appendChild(selectAlpha);
-
-// Insertar select de filtro alfabético antes del botón filtrar
-// Para mejor visualización, insertarlo antes del botón filtrar o al final
 filterRow.insertBefore(filterAlphaDiv, filterRow.lastElementChild);
 
-// Modificar renderTable para incluir filtro alfabético
+// CONFIGURAR FECHA MÁXIMA (HOY)
+
+const fechaInput = document.getElementById('fechaInput');
+function disableFutureDates() {
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  const maxDate = `${yyyy}-${mm}-${dd}`;
+  fechaInput.setAttribute('max', maxDate);
+  
+  if (!fechaInput.value) {
+    fechaInput.value = maxDate;
+  }
+}
+disableFutureDates();
+
+// FUNCIÓN PRINCIPAL: RENDERIZAR TABLA
+
 function renderTable(filter = {}) {
-  // Desmarcar el checkbox principal cada vez que se renderiza la tabla
   selectAllCheckbox.checked = false;
   selectAllCheckbox.indeterminate = false;
   tbody.innerHTML = '';
@@ -91,10 +415,11 @@ function renderTable(filter = {}) {
   const selectedAlpha = (filter.alpha || '').toUpperCase();
 
   let filteredStudents = students.filter(student => {
-    const matchesSearch = student.name.toLowerCase().includes(searchText) || student.email.toLowerCase().includes(searchText);
+    const matchesSearch = student.name.toLowerCase().includes(searchText) || 
+                         student.email.toLowerCase().includes(searchText);
     const matchesGroup = student.group === selectedGrupo;
-    const matchesAlpha = selectedAlpha === '' || student.name.toUpperCase().startsWith(selectedAlpha);
-    // No se filtra por materia dado que no está implementado en datos
+    const matchesAlpha = selectedAlpha === '' || 
+                        student.name.toUpperCase().startsWith(selectedAlpha);
     return matchesSearch && matchesGroup && matchesAlpha;
   });
 
@@ -102,30 +427,14 @@ function renderTable(filter = {}) {
     const tr = document.createElement('tr');
     tr.setAttribute('data-id', student.id);
 
-    //Formato Fechas Futuras
-
-    const fechaInput = document.getElementById('fechaInput');
-function disableFutureDates() {
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const dd = String(today.getDate()).padStart(2, '0');
-    const maxDate = `${yyyy}-${mm}-${dd}`;
-    fechaInput.setAttribute('max', maxDate);
-}
-disableFutureDates();
-
-    // Colorear fila según estado de asistencia
     const studentStatus = attendanceStates[student.id];
+    
     if (studentStatus === "Ausente") {
-      // Clase para ausente (rojo)
       tr.classList.add("table-danger");
     } else if (studentStatus === "Justificado") {
-      // Clase para justificado (amarillo)
       tr.classList.add("table-warning");
     }
 
-    // --- INICIO: Lógica para Checkbox de selección ---
     const tdCheckbox = document.createElement('td');
     tdCheckbox.className = 'checkbox-cell';
     const checkbox = document.createElement('input');
@@ -137,9 +446,7 @@ disableFutureDates();
       updateSelectAllCheckboxState();
     });
     tdCheckbox.appendChild(checkbox);
-    // --- FIN: Lógica para Checkbox de selección ---
 
-    // Columna estudiante
     const tdName = document.createElement('td');
     const divStudentInfo = document.createElement('div');
     divStudentInfo.className = "student-info";
@@ -153,13 +460,11 @@ disableFutureDates();
     divStudentInfo.appendChild(spanEmail);
     tdName.appendChild(divStudentInfo);
 
-    // Columna grupo
     const tdGroup = document.createElement('td');
     tdGroup.className = 'student-group';
     const [grpText, grpLetter] = student.group.split(' ');
     tdGroup.innerHTML = `${grpText} <strong>${grpLetter}</strong>`;
 
-    // Columna estado
     const tdStatus = document.createElement('td');
     const statusText = attendanceStates[student.id] || "No registrado";
 
@@ -180,11 +485,9 @@ disableFutureDates();
       tdStatus.appendChild(spanStatus);
     }
 
-    // Columna acciones
     const tdActions = document.createElement('td');
     tdActions.className = 'actions-cell';
 
-    // Botones estado
     const btnPresent = document.createElement('button');
     btnPresent.className = 'btn-status btn-present';
     btnPresent.type = 'button';
@@ -231,7 +534,7 @@ disableFutureDates();
   if (filteredStudents.length === 0) {
     const trEmpty = document.createElement('tr');
     const tdEmpty = document.createElement('td');
-    tdEmpty.colSpan = 5; // Aumentado a 5 por la nueva columna de checkbox
+    tdEmpty.colSpan = 5;
     tdEmpty.style.textAlign = 'center';
     tdEmpty.style.padding = '1.2rem';
     tdEmpty.style.color = '#666';
@@ -241,12 +544,18 @@ disableFutureDates();
   }
 }
 
-// Cambiar estado de asistencia y volver a renderizar
+// ACTUALIZAR ASISTENCIA
 function updateAttendance(studentId, status) {
   attendanceStates[studentId] = status;
+  hasUnsavedChanges = true;
+  updateActionButtons();
   renderTable(getCurrentFilters());
+  
+  const studentName = students.find(s => s.id === studentId).name;
+  console.log(`✓ ${studentName} marcado como: ${status} (sin guardar)`);
 }
 
+// OBTENER FILTROS ACTUALES
 function getCurrentFilters() {
   return {
     search: searchInput.value.trim(),
@@ -257,11 +566,7 @@ function getCurrentFilters() {
   };
 }
 
-// --- INICIO: Lógica para controlar la selección de todos los checkboxes ---
-
-/**
- * Actualiza el estado del checkbox "Seleccionar todos" basado en los checkboxes individuales.
- */
+// CHECKBOX "SELECCIONAR TODOS"
 function updateSelectAllCheckboxState() {
   const studentCheckboxes = document.querySelectorAll('.student-checkbox');
   const total = studentCheckboxes.length;
@@ -278,13 +583,10 @@ function updateSelectAllCheckboxState() {
     selectAllCheckbox.indeterminate = false;
   } else {
     selectAllCheckbox.checked = false;
-    selectAllCheckbox.indeterminate = true; // Estado intermedio (algunos seleccionados)
+    selectAllCheckbox.indeterminate = true;
   }
 }
 
-/**
- * Evento para el checkbox "Seleccionar todos".
- */
 selectAllCheckbox.addEventListener('change', () => {
   const studentCheckboxes = document.querySelectorAll('.student-checkbox');
   studentCheckboxes.forEach(checkbox => {
@@ -292,25 +594,90 @@ selectAllCheckbox.addEventListener('change', () => {
     checkbox.closest('tr').classList.toggle('selected', selectAllCheckbox.checked);
   });
 });
-// --- FIN: Lógica para controlar la selección de todos los checkboxes ---
 
-// Eventos
+// EVENTOS DE FILTROS
 filterForm.addEventListener('submit', e => {
   e.preventDefault();
   renderTable(getCurrentFilters());
 });
+
 searchInput.addEventListener('input', () => {
   renderTable(getCurrentFilters());
 });
+
 document.getElementById('grupoSelect').addEventListener('change', () => {
-  // Limpiar búsqueda y filtro alfabético cuando cambia grupo para mejor UX
+  if (hasUnsavedChanges) {
+    if (!confirm('⚠️ Tienes cambios sin guardar. ¿Deseas continuar sin guardar?')) {
+      return;
+    }
+  }
   searchInput.value = '';
   selectAlpha.value = '';
+  attendanceStates = loadAttendanceFromStorage();
+  students.forEach(s => {
+    if (!attendanceStates[s.id]) {
+      attendanceStates[s.id] = 'No registrado';
+    }
+  });
+  hasUnsavedChanges = false;
+  updateActionButtons();
   renderTable(getCurrentFilters());
 });
+
+document.getElementById('materiaSelect').addEventListener('change', () => {
+  if (hasUnsavedChanges) {
+    if (!confirm('⚠️ Tienes cambios sin guardar. ¿Deseas continuar sin guardar?')) {
+      return;
+    }
+  }
+  attendanceStates = loadAttendanceFromStorage();
+  students.forEach(s => {
+    if (!attendanceStates[s.id]) {
+      attendanceStates[s.id] = 'No registrado';
+    }
+  });
+  hasUnsavedChanges = false;
+  updateActionButtons();
+  renderTable(getCurrentFilters());
+});
+
+document.getElementById('fechaInput').addEventListener('change', () => {
+  if (hasUnsavedChanges) {
+    if (!confirm('⚠️ Tienes cambios sin guardar. ¿Deseas continuar sin guardar?')) {
+      return;
+    }
+  }
+  attendanceStates = loadAttendanceFromStorage();
+  students.forEach(s => {
+    if (!attendanceStates[s.id]) {
+      attendanceStates[s.id] = 'No registrado';
+    }
+  });
+  hasUnsavedChanges = false;
+  updateActionButtons();
+  renderTable(getCurrentFilters());
+});
+
 selectAlpha.addEventListener('change', () => {
   renderTable(getCurrentFilters());
 });
 
-// Iniciar tabla
+const logoutLink = document.querySelector('.bottom-logout');
+if (logoutLink) {
+  logoutLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (hasUnsavedChanges) {
+      if (!confirm('⚠️ Tienes cambios sin guardar. ¿Deseas cerrar sesión de todas formas?')) {
+        return;
+      }
+    }
+    if (confirm('¿Deseas cerrar sesión?')) {
+      localStorage.removeItem('currentSession');
+      window.location.href = './logIn.html';
+    }
+  });
+}
+// INICIALIZAR
+createActionButtons();
 renderTable(getCurrentFilters());
+updateActionButtons();
