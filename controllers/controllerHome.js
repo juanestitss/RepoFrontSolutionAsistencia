@@ -12,7 +12,6 @@ botonFormulario.addEventListener("click",function(evento){
     let nombreRecibido=nombreUsuario.value
     let contraseñaRecibida=contraseñaUsuario.value
 
-
     //validando los datos
     if(nombreRecibido==""||nombreRecibido=="juan"){
         Swal.fire({
@@ -28,20 +27,11 @@ botonFormulario.addEventListener("click",function(evento){
         });
 
     }
-
-
     //construyendo un JSON
     let envioDatos={
         nombre:nombreRecibido,
         contraseña:contraseñaRecibida
     }
-   
-    /*Swal.fire({
-        title: "Good job!",
-        text: "You clicked the button!",
-        icon: "success"
-    });*/
-
 })
 
 
